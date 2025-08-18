@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 from olx import OLX
-from utils import remove_duplicates, remove_duplicate_offers
+from utils import remove_duplicate_offers
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import requests
@@ -11,22 +11,21 @@ from datetime import datetime
 load_dotenv()
 
 OLX_URL = os.getenv("OLX_URL")
-CSV_FILE = "offers.csv"
+CSV_FILE = os.getenv("CSV_FILE")
 MAX_WORKERS = 10
 MAX_RETRIES = 3
 RETRY_DELAY = 1
 
 
-def fetch_status(id, url):
-    api_url = f"https://www.olx.pl/api/v1/offers/{id}/"
+def fetch_status(offer_id, url):
+    api_url = f"https://www.olx.pl/api/v1/offers/{offer_id}/"
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = requests.get(api_url, timeout=10)
-            if response.status_code == 200:
-                print(
-                    f"Fetched status for {url}: {response.json().get('data', {}).get('status')}"
-                )
-                return response.json().get("data", {}).get("status")
+            r = requests.get(api_url, timeout=10)
+            if r.status_code == 200:
+                status = r.json().get("data", {}).get("status")
+                print(f"Fetched status for {url}: {status}")
+                return status
         except Exception as e:
             print(f"[Attempt {attempt}] Error fetching {url}: {e}")
         time.sleep(RETRY_DELAY)
@@ -36,23 +35,23 @@ def fetch_status(id, url):
 def update_rented_status(df):
     rented_count = 0
 
-    def check_offer(row):
-        i, offer = row
+    def check_offer(i, offer):
         if pd.isna(offer["rented_at"]):
             status = fetch_status(offer["id"], offer["url"])
             if status and status != "active":
-                return i, datetime.today().date(), offer["url"], status
+                return i, status
         return None
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(check_offer, row) for row in df.iterrows()}
+        futures = [executor.submit(check_offer, i, row) for i, row in df.iterrows()]
         for future in as_completed(futures):
-            res = future.result()
-            if res:
-                i, rented_date, url, status = res
-                df.at[i, "rented_at"] = rented_date
+            result = future.result()
+            if result:
+                i, status = result
+                df.at[i, "rented_at"] = datetime.today().date()
+                df.at[i, "status"] = status
                 rented_count += 1
-                print(f"Marked as rented: {url} (status: {status})")
+                print(f"Marked as rented: {df.at[i, 'url']} (status: {status})")
 
     print(f"Total offers marked as rented: {rented_count}")
     return df
@@ -64,15 +63,15 @@ def main() -> pd.DataFrame:
     offers = remove_duplicate_offers(offers)
 
     df_existing = pd.read_csv(CSV_FILE)
-    df_existing = remove_duplicates(df_existing)
 
     existing_urls = set(df_existing["url"].tolist())
     new_offers = []
 
     for offer in offers:
+        created_at = datetime.fromisoformat(offer.created_at).date()
         if offer.url in existing_urls:
             continue
-        else:
+        elif created_at == datetime.today().date():
             print(f"Adding new offer: {offer.url}")
             new_offers.append(
                 {
