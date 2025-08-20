@@ -101,6 +101,7 @@ def main() -> pd.DataFrame:
         df = pd.concat([df_existing, df_new], ignore_index=True)
         print(f"Added {len(new_offers)} new offers.")
     else:
+        df = df_existing
         print("No new offers found.")
 
     df = update_rented_status(df)
