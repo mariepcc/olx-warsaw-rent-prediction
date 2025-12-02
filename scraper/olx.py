@@ -72,6 +72,10 @@ class OLX:
                         rooms = param.get("value").get("label")
                     if param.get("key") == "m":
                         area = param.get("value").get("label")
+                    if param.get("key") == "floor_select":
+                        floor = param.get("value").get("label")
+                    if param.get("key") == "builttype":
+                        buildtype = param.get("value").get("label")
                     if param.get("key") == "winda":
                         elevator = param.get("value").get("label")
                     if param.get("key") == "pets":
@@ -101,6 +105,8 @@ class OLX:
                         district=district,
                         price=price,
                         rent=rent,
+                        floor=floor,
+                        buildtype=buildtype,
                         created_at=created_at,
                         rented_at=None,
                         status=status,

@@ -4,3 +4,5 @@ __pycache__
 *.pyc
 offers.csv
 cron.log
+.DS_Store
+offer.txt
